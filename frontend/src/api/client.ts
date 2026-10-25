@@ -1,8 +1,14 @@
 // Small typed fetch layer. All backend access goes through here so the base URL,
 // error handling, and JSON decoding live in one place.
-
-export const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+//
+// Base URL resolution:
+// - Production: unset `VITE_API_BASE_URL` -> relative base (""), so the browser
+//   calls `/api/...` and `/health` on its own origin, where Nginx proxies them
+//   to the FastAPI backend. No hardcoded host, no cross-origin, no CORS.
+// - Local dev: the Vite dev server proxies `/api` and `/health` to the backend
+//   (see vite.config.ts), so the relative base works there too. Set
+//   `VITE_API_BASE_URL` only to point the browser at an absolute backend URL.
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 /** Error carrying the HTTP status and any `detail` message the API returned. */
 export class ApiError extends Error {
@@ -31,7 +37,7 @@ export async function getJson<T>(path: string, signal?: AbortSignal): Promise<T>
       throw error;
     }
     throw new ApiError(
-      `Could not reach the backend at ${API_BASE_URL}. Is it running?`,
+      `Could not reach the backend at ${API_BASE_URL || "the API origin"}. Is it running?`,
       0,
     );
   }

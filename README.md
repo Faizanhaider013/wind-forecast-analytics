@@ -55,11 +55,14 @@ yet.
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── tsconfig.node.json
-│   ├── vite.config.ts    # Vite + Vitest config
-│   ├── Dockerfile
+│   ├── vite.config.ts    # Vite + Vitest config (dev proxy for /api, /health)
+│   ├── Dockerfile        # Dev image (Vite dev server)
+│   ├── Dockerfile.prod   # Prod image (static build + Nginx)
+│   ├── nginx.conf        # Nginx: serve SPA, proxy /api + /health to backend
 │   └── .env.example
 ├── data/                 # Local data (generated contents are git-ignored)
-├── docker-compose.yml    # Minimal local dev composition
+├── docker-compose.yml       # Local dev composition (hot reload)
+├── docker-compose.prod.yml  # Production-style composition (Nginx + static build)
 ├── .gitignore
 └── README.md
 ```
@@ -155,6 +158,15 @@ npm run build       # tsc -b && vite build
 
 ## Running with Docker (optional)
 
+There are two Compose files:
+
+| File | Purpose | Frontend | Entry point |
+| --- | --- | --- | --- |
+| `docker-compose.yml` | **Development** — hot reload | Vite dev server (`npm run dev --host`) | Browser → backend directly on `:8000` (CORS) |
+| `docker-compose.prod.yml` | **Production-style** — static build | Compiled bundle served by Nginx | Browser → Nginx on `:8080`, which proxies `/api` + `/health` to the backend (no CORS) |
+
+### Development stack
+
 ```powershell
 docker compose up --build
 ```
@@ -173,6 +185,30 @@ stack:
 docker compose run --rm backend python -m app.ingestion --target-month 2026-01
 docker compose up --build
 ```
+
+### Production-style stack
+
+`docker-compose.prod.yml` builds a production frontend image
+(`frontend/Dockerfile.prod`): a multi-stage build that compiles the Vite bundle
+and serves it with Nginx (`frontend/nginx.conf`). The app uses **relative** API
+URLs (`/api`, `/health`), so the browser only ever talks to the frontend's own
+origin; Nginx proxies those paths to the `backend` service on the internal
+Compose network. There is therefore no CORS and no hardcoded backend host, and
+the backend publishes no host port — Nginx is the single entry point.
+
+```powershell
+docker compose -f docker-compose.prod.yml build
+# Populate the database once (persisted via the ./data bind mount):
+docker compose -f docker-compose.prod.yml run --rm backend `
+    python -m app.ingestion --target-month 2026-01
+docker compose -f docker-compose.prod.yml up -d
+# App: http://localhost:8080
+```
+
+Verified end to end on the production stack: the Nginx container's own
+`/healthz` liveness check, the static SPA at `/`, the proxied backend `/health`
+and `/api/...` endpoints (returning live data), and SPA history fallback so
+deep links such as `/accuracy` load on refresh.
 
 ## Phase 1 — Elexon data ingestion
 
@@ -397,18 +433,25 @@ Deployment links will be added here once the application is deployed.
 
 ### Production notes
 
-- **CORS:** set `CORS_ORIGINS` on the backend to the deployed frontend
-  origin(s), comma-separated (see `backend/.env.example`). It defaults to the
-  Vite dev origin, which will block a production browser frontend.
-- **Frontend API URL:** `VITE_API_BASE_URL` is inlined at **build time** by
-  Vite, so it must be set when running `npm run build` for production (not just
-  at runtime).
-- **Docker images are development-oriented:** the frontend image runs the Vite
-  dev server (`npm run dev --host`), not a production static build. For
-  production, build the static bundle (`npm run build`) and serve `dist/` from a
-  static host or add a multi-stage image (build + nginx). The backend image runs
-  uvicorn directly without `--reload`, which is acceptable for a single-worker
-  deployment; put it behind a process manager / reverse proxy for production.
+- **Production-style stack provided:** `docker-compose.prod.yml` +
+  `frontend/Dockerfile.prod` + `frontend/nginx.conf` serve a compiled static
+  frontend behind Nginx, which proxies `/api` and `/health` to the backend on
+  the internal network (see "Production-style stack" above). Because the browser
+  talks only to the Nginx origin via relative URLs, this avoids CORS and
+  build-time API-URL baking entirely — the two notes below apply only if you
+  instead deploy the frontend on a **different origin** from the backend.
+- **CORS (cross-origin deploys only):** if a browser will call the backend
+  cross-origin directly (not via the Nginx proxy), set `CORS_ORIGINS` on the
+  backend to the deployed frontend origin(s), comma-separated (see
+  `backend/.env.example`). It defaults to the Vite dev origin, which would block
+  a production browser frontend.
+- **Frontend API URL (cross-origin deploys only):** `VITE_API_BASE_URL` is
+  inlined at **build time** by Vite, so it must be set when running
+  `npm run build` if the API lives on a different origin. The production image
+  leaves it empty, which yields relative URLs for the same-origin Nginx proxy.
+- **Backend process model:** the backend image runs uvicorn directly without
+  `--reload`, which is acceptable for a single-worker deployment; put it behind
+  a process manager / additional reverse proxy for a larger production rollout.
 - **Database persistence:** the backend reads `data/wind.db` (mounted via
   Compose at `/app/data`). Ingestion must be run to populate it before the API
   can serve data; the API is read-only and returns `503` if the database is

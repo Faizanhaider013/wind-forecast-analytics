@@ -1,0 +1,57 @@
+# Production-style Compose: FastAPI backend + Nginx-served static frontend.
+#
+# How the frontend reaches the backend:
+#   The frontend image is a multi-stage build that serves the compiled Vite
+#   bundle with Nginx. The app uses RELATIVE URLs (/api, /health), so the
+#   browser calls the frontend's own origin; Nginx proxies /api and /health to
+#   the `backend` service on the internal Compose network. The browser never
+#   talks to the backend directly, so no CORS and no hardcoded backend host.
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml build
+#   # Populate the database once (persisted via the ./data mount):
+#   docker compose -f docker-compose.prod.yml run --rm backend \
+#       python -m app.ingestion --target-month 2026-01
+#   docker compose -f docker-compose.prod.yml up -d
+#   # App: http://localhost:8080
+services:
+  backend:
+    build: ./backend
+    # No host port is published: the frontend (Nginx) is the single entry point
+    # and reaches the backend over the internal network. Uncomment to debug.
+    # ports:
+    #   - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WIND_DATA_DIR=/app/data
+      # Same-origin via the Nginx proxy means CORS is not needed in production.
+      # Set this only if a browser will call the API cross-origin directly:
+      # - CORS_ORIGINS=https://wind.example.com
+    volumes:
+      # Persistent, documented bind mount for the SQLite DB and raw cache.
+      # The database is NOT baked into the image (see backend/.dockerignore).
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped

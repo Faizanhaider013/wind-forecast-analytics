@@ -7,6 +7,13 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // Proxy API calls to the backend during local `npm run dev`, so the app can
+    // use relative `/api` and `/health` URLs (same as production behind Nginx).
+    // This keeps the dev server same-origin — no CORS needed for local dev.
+    proxy: {
+      "/api": { target: "http://localhost:8000", changeOrigin: true },
+      "/health": { target: "http://localhost:8000", changeOrigin: true },
+    },
   },
   build: {
     rollupOptions: {

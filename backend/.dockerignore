@@ -6,3 +6,10 @@ venv/
 .env.*
 !.env.example
 .pytest_cache/
+# Never bake data into the image (the DB/cache are mounted at runtime).
+# These live at the repo root, outside the backend build context, but are
+# listed defensively in case the context ever includes a data/ directory.
+data/
+*.db
+*.sqlite
+*.sqlite3
