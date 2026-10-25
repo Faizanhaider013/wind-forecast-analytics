@@ -1,0 +1,16 @@
+# Python 3.13-compatible dependencies.
+#
+# Runtime API:
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+# IANA time-zone database for zoneinfo (Europe/London DST handling). Required on
+# Windows and on slim Linux images, which ship no system tz database.
+tzdata==2025.2
+#
+# Phase 1 Elexon ingestion adds NO runtime dependency: it uses only the Python
+# standard library (urllib for HTTP, sqlite3 for storage).
+#
+# Tests only:
+pytest==8.3.4
+# httpx backs FastAPI's TestClient (used by the API route tests).
+httpx==0.28.1

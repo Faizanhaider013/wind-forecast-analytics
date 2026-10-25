@@ -1,0 +1,5 @@
+# Ignore all locally generated data in this directory,
+# but keep the directory itself tracked in Git.
+*
+!.gitkeep
+!.gitignore
