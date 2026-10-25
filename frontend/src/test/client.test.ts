@@ -41,4 +41,19 @@ describe("getJson", () => {
     mockFetch(() => new Response("not json{", { status: 200 }));
     await expect(getJson("/x")).rejects.toBeInstanceOf(ApiError);
   });
+
+  it("falls back to a generic message on a non-2xx with a non-JSON body", async () => {
+    // A reverse proxy (e.g. Nginx) returns an HTML 502/504, not JSON `detail`.
+    mockFetch(
+      () =>
+        new Response("<html>502 Bad Gateway</html>", {
+          status: 502,
+          headers: { "Content-Type": "text/html" },
+        }),
+    );
+    const err = await getJson("/x").catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err.status).toBe(502);
+    expect(err.message).toBe("Request failed with HTTP 502");
+  });
 });

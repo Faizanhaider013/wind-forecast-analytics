@@ -68,6 +68,19 @@ def test_accuracy_to_before_from_400(client):
     assert r.status_code == 400
 
 
+def test_horizon_to_before_from_400(client):
+    # The by-horizon endpoint must enforce the same date-order rule as /accuracy.
+    r = client.get(
+        "/api/accuracy/by-horizon", params={"from": "2026-01-31", "to": "2026-01-01"}
+    )
+    assert r.status_code == 400
+
+
+def test_horizon_bad_date_400(client):
+    r = client.get("/api/accuracy/by-horizon", params={"from": "nope", "to": "2026-01-31"})
+    assert r.status_code == 400
+
+
 def test_missing_database_returns_503(client, monkeypatch, tmp_path):
     def _raise():
         raise DatabaseUnavailable("database not found")

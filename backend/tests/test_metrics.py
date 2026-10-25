@@ -65,3 +65,17 @@ def test_persistence_benchmark_empty_has_no_skill():
     assert pb["skill_mae_percent"] is None
     assert pb["model_mae_mw_same_sample"] is None
     assert "omitted" in pb["note"]
+
+
+def test_persistence_skill_is_none_when_persistence_is_perfect():
+    # Persistence predicted both hours exactly -> persistence MAE = 0. Skill is
+    # 1 - model/0, which is undefined; the divide guard must return None rather
+    # than raise ZeroDivisionError. The benchmark is still included (n > 0).
+    persistence_pairs = [(300.0, 300.0), (500.0, 500.0)]  # zero error -> MAE 0
+    model_subset = [(350.0, 300.0), (450.0, 500.0)]       # model MAE 50
+    pb = analytics.persistence_benchmark(persistence_pairs, model_subset)
+    assert pb["included"] is True
+    assert pb["n"] == 2
+    assert pb["mae_mw"] == 0.0
+    assert pb["model_mae_mw_same_sample"] == 50.0
+    assert pb["skill_mae_percent"] is None  # guarded, not a crash

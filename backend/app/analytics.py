@@ -425,11 +425,20 @@ def build_accuracy(
         for hour in targets:
             fc = forecasts.get(hour)
             act = actuals.get(hour)
-            if fc is None:
+            # A vintage row with a null generation value carries no usable
+            # forecast, so it is treated as missing (consistent with the
+            # decision builder) rather than crashing on float(None).
+            if fc is None or fc[1] is None:
                 missing_forecast += 1
             if act is None or not act.complete:
                 incomplete_actual += 1
-            if fc is not None and act is not None and act.complete and act.mean_mw is not None:
+            if (
+                fc is not None
+                and fc[1] is not None
+                and act is not None
+                and act.complete
+                and act.mean_mw is not None
+            ):
                 matched.append((float(fc[1]), act.mean_mw))
                 # Persistence: same hour-of-day, PERSISTENCE_LAG_DAYS earlier.
                 shifted = timeutils.to_canonical_z(
@@ -573,7 +582,14 @@ def build_horizon(
 
     buckets: dict[str, list[tuple[float, float]]] = {name: [] for name, _, _ in HORIZON_BUCKETS}
     excluded_future = 0
+    excluded_null_forecast = 0
     for r in rows:
+        if r["forecast_mw"] is None:
+            # A stored vintage may carry a null generation value (the WINDFOR
+            # feed can omit it, and the schema allows it). Without a forecast
+            # value there is no error to score, so it is excluded, never imputed.
+            excluded_null_forecast += 1
+            continue
         target_dt = timeutils.parse_utc(r["target"])
         publish_dt = timeutils.parse_utc(r["publish"])
         if cutoff_hour is not None:
@@ -621,6 +637,7 @@ def build_horizon(
             )
         ),
         "excluded_after_cutoff": excluded_future,
+        "excluded_null_forecast": excluded_null_forecast,
         "buckets": out_buckets,
         "total_scored_vintages": sum(b["n"] for b in out_buckets),
     }

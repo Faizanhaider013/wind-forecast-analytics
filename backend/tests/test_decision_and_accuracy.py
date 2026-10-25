@@ -52,6 +52,30 @@ def test_decision_matches_missing_and_incomplete(memory_db):
     assert cov["fully_covered"] is False
 
 
+def test_decision_on_empty_day_is_all_missing_with_null_summary(memory_db):
+    # No actuals and no forecasts for the delivery day: every hour is unmatched,
+    # the averages are null (never fabricated as 0), and the MWh totals are 0.0.
+    dec = analytics.build_decision(memory_db, date(2026, 1, 15), 10)
+    assert len(dec["periods"]) == 24
+    assert all(p["matched"] is False for p in dec["periods"])
+    assert all(p["forecast_mw"] is None for p in dec["periods"])
+    assert all(p["actual_mean_mw"] is None for p in dec["periods"])
+
+    s = dec["summary"]
+    assert s["forecast"]["avg_mw"] is None       # no values -> null, not 0
+    assert s["forecast"]["total_mwh"] == 0.0
+    assert s["forecast"]["hours_with_forecast"] == 0
+    assert s["actual"]["avg_mw"] is None
+    assert s["actual"]["total_mwh_halfhourly_basis"] == 0.0
+    assert s["actual"]["half_hours_present"] == 0
+
+    cov = dec["coverage"]
+    assert cov["matched_hours"] == 0
+    assert cov["fully_covered"] is False
+    assert len(cov["missing_forecast_hours"]) == 24
+    assert len(cov["incomplete_actual_hours"]) == 24
+
+
 def test_decision_summary_units_mw_and_mwh(memory_db):
     # Two fully matched hours; check MW averages and MWh totals.
     insert_forecast(memory_db, "2026-01-15T00:00:00Z", "2026-01-14T09:30:00Z", 1000)
