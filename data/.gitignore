@@ -3,3 +3,6 @@
 *
 !.gitkeep
 !.gitignore
+# Keep the read-only database snapshot tracked so it ships with Git-based
+# Vercel deployments (the serverless API reads it; see api/index.py).
+!wind.db

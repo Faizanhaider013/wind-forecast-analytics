@@ -1,0 +1,9 @@
+# Runtime dependencies for the Vercel Python serverless function.
+#
+# The backend uses only FastAPI plus the Python standard library (sqlite3,
+# urllib, zoneinfo). Vercel provides the ASGI<->serverless bridge, so uvicorn
+# is NOT needed at runtime here (unlike the Docker image).
+fastapi==0.115.6
+# IANA time-zone database for zoneinfo (Europe/London DST). Vercel's slim
+# Python runtime ships no system tz database, so this is required.
+tzdata==2025.2

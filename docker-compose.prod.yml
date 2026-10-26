@@ -49,7 +49,9 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/healthz"]
+      # Use 127.0.0.1, not "localhost": BusyBox wget tries IPv6 ::1 first, but
+      # nginx's `listen 80` binds IPv4 only, so "localhost" is refused in-container.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
       interval: 10s
       timeout: 3s
       retries: 5

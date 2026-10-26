@@ -39,6 +39,8 @@ pnpm-debug.log*
 data/*
 !data/.gitkeep
 !data/.gitignore
+# Ship the read-only DB snapshot so Vercel (Git-based) deploys have data.
+!data/wind.db
 
 # ---- IDE / editor ----
 .vscode/

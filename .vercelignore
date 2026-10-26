@@ -1,0 +1,25 @@
+# Files not needed in the Vercel deployment (keeps uploads small on `vercel` CLI).
+# NOTE: unlike .gitignore, Vercel needs data/wind.db, so it is NOT ignored here.
+
+# Node / build artifacts (Vercel rebuilds the frontend itself)
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Python caches / local envs
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Tests (not part of the runtime function)
+backend/tests/
+frontend/src/test/
+
+# Raw ingestion cache — only wind.db is needed at runtime
+data/raw/
+
+# Local docker/dev files
+docker-compose.yml
+docker-compose.prod.yml
